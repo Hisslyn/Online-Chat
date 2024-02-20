@@ -1,8 +1,9 @@
 import socket
 import threading
+import time
 import sys
 
-def client_handler(connection, client_address, other_connection, stop_event):
+def client_handler(connection, client_address, other_connection, stop_event, notify_shutdown_event):
     try:
         while not stop_event.is_set():
             try:
@@ -11,20 +12,39 @@ def client_handler(connection, client_address, other_connection, stop_event):
                 if message:
                     print(f"Received message from {client_address}: {message.decode()}")
                     other_connection.sendall(message)
+                    if decoded_message == "quit":
+                        break
                 else:
                     # Connection closed
                     print(f"Connection with {client_address} closed.")
                     break
             except socket.timeout:
-                continue  # Timeout occurred, loop back and check stop_event again
+                if notify_shutdown_event.is_set():
+                    connection.sendall(b"The server will disconnect shortly, please type \"quit\".")
+                continue
             except Exception as e:
                 print(f"Error with {client_address}: {e}")
                 break
     finally:
         connection.close()
 
+def countdown(notify_shutdown_event, stop_event, connections):
+    for i in range(20, 0, -1):
+        print(f"The server will disconnect in {i} seconds, please type \"quit\".", end='\r')
+        time.sleep(1)
+        if stop_event.is_set():  # If all clients have disconnected
+            break
+    notify_shutdown_event.set()  # Notify client handlers to send shutdown message
+    time.sleep(1)  # Give a moment for the message to be sent
+    for conn in connections:
+        try:
+            conn.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
+        conn.close()
+    stop_event.set()
+
 def start_server(host='0.0.0.0', port=12345):
-    stop_event = threading.Event()
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((host, port))
     server_socket.listen(2)
