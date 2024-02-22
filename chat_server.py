@@ -12,6 +12,7 @@ def client_handler(connection, client_address, other_connection, stop_event, not
                 if message:
                     print(f"Received message from {client_address}: {message.decode()}")
                     other_connection.sendall(message)
+                    decoded_message = message.decode()
                     if decoded_message == "quit":
                         break
                 else:
@@ -45,6 +46,9 @@ def countdown(notify_shutdown_event, stop_event, connections):
     stop_event.set()
 
 def start_server(host='0.0.0.0', port=12345):
+    stop_event = threading.Event()
+    notify_shutdown_event = threading.Event()
+    
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((host, port))
     server_socket.listen(2)
@@ -68,6 +72,8 @@ def start_server(host='0.0.0.0', port=12345):
                 t1.start()
                 t2.start()
                 threads.extend([t1, t2])
+    t1 = threading.Thread(target=client_handler, args=(connections[0], 'Client 1', connections[1], stop_event, notify_shutdown_event))
+    t2 = threading.Thread(target=client_handler, args=(connections[1], 'Client 2', connections[0], stop_event, notify_shutdown_event))
 
     accept_thread = threading.Thread(target=accept_connections)
     accept_thread.start()
@@ -88,8 +94,12 @@ def start_server(host='0.0.0.0', port=12345):
 
     # Close all client connections
     for conn in connections:
-        conn.shutdown(socket.SHUT_RDWR)
-        conn.close()
+        try:
+            conn.shutdown(socket.SHUT_RDWR)
+            conn.close()
+        except Exception as e:
+            print(f"Error closing connection: {e}")
+
 
     # Wait for all client handler threads to terminate
     for t in threads:

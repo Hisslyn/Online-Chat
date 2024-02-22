@@ -16,7 +16,8 @@ def receive_messages(sock):
     except Exception as e:
         print("Connection closed by the server.")
     finally:
-        sock.close()
+        if sock.close() == False:
+            sock.close()
 
 def send_messages(sock):
     try:
@@ -28,7 +29,8 @@ def send_messages(sock):
     except Exception as e:
         print("Error sending message.")
     finally:
-        sock.close()
+        if sock.close() == False:
+            sock.close()
 
 def start_client(server_host='127.0.0.1', server_port=12345):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
